@@ -4,27 +4,25 @@ import math
 
 
 class AESManager:
-    def __init__(self, style=128):
+    def __init__(self, style=128, debug=False):
+        self.is_debug = debug
         if style == 128:
             self.rounds = 10
-            self.passphrase_len = 16
             self.cipher_word = 4
         elif style == 192:
             self.rounds = 12
-            self.passphrase_len = 24
             self.cipher_word = 6
         elif style == 256:
             self.rounds = 14
-            self.passphrase_len = 32
             self.cipher_word = 8
         else:
             raise Exception("Chi ma hoa AES-128, AES-192 va AES-256")
         self.round_keys = []
         return
 
-    def debug(self, args):
-        pass
-        # print(args)
+    def debug(self, *args):
+        if self.is_debug:
+            print(*args)
 
     # def gen_round_keys(self, passphrase_bv):
     #     self.round_keys = []
@@ -34,14 +32,13 @@ class AESManager:
     #     print(self.round_keys)
     #     return
 
-    def encrypt(self, passphrase: str, plaintext: str):
+    def encrypt(self, cipher_key: str, plaintext: str):
         result_cipher_text = ""
-        passphrase = self.handler_passphrase(passphrase)
-        self.debug("Passphrase: %s" % passphrase)
-        passphrase = BitVector(textstring=passphrase)
+        cipher_key = self.handler_cipher_key(cipher_key)
+        self.debug("Passphrase: %s" % cipher_key)
+        cipher_key = BitVector(textstring=cipher_key)
         # gen round keys
-        round_keys = self.expand_key(passphrase.get_bitvector_in_hex())
-        # self.gen_round_keys(passphrase)
+        round_keys = self.expand_key(cipher_key.get_bitvector_in_hex())
         # format plain text
         message = self.format_text(plaintext)
         self.debug("Plain text: %s" % message)
@@ -57,41 +54,40 @@ class AESManager:
             else:
                 plaintext_seg = message[start: length]
                 plaintext_seg.ljust(16, '\0')
-            # print('Add passphrase')
-            # add passphrase
-            result_bv = self.add_round_key(text_str=plaintext_seg, round_key=round_keys[0])
+            # add cipher key
+            result = self.add_round_key(BitVector(textstring=plaintext_seg).get_bitvector_in_hex(),
+                                        round_keys[0])
             for y in range(self.rounds - 1):
                 self.debug("Round #%d" % (y + 1))
-                hex_str = result_bv.get_bitvector_in_hex()
+                # hex_str = result_bv.get_bitvector_in_hex()
 
                 # sub bytes
-                sub_byte_hex = self.sub_bytes(hex_str)
+                result = self.sub_bytes(result)
 
                 # shift row
-                shift_row_hex = self.shift_rows(sub_byte_hex)
+                result = self.shift_rows(result)
 
                 # mix column
-                mix_column_hex = self.mix_columns(shift_row_hex)
+                result = self.mix_columns(result)
 
                 # add round key
-                result_bv = self.add_round_key(hex_str=mix_column_hex, round_key=round_keys[y + 1])
+                result = self.add_round_key(result, round_keys[y + 1])
 
             self.debug("Round #%d" % self.rounds)
             # Round last
-            hex_str = result_bv.get_bitvector_in_hex()
+            # hex_str = result_bv.get_bitvector_in_hex()
 
             # sub bytes
-            sub_byte_hex = self.sub_bytes(hex_str)
+            result = self.sub_bytes(result)
 
             # shift row
-            shift_row_hex = self.shift_rows(sub_byte_hex)
+            result = self.shift_rows(result)
 
             # add round key
-            result_bv = self.add_round_key(hex_str=shift_row_hex, round_key=round_keys[self.rounds])
+            result = self.add_round_key(result, round_keys[self.rounds])
 
             # write hex
-            output_hex = result_bv.get_hex_string_from_bitvector()
-            result_cipher_text = result_cipher_text + output_hex
+            result_cipher_text = result_cipher_text + result  # get_hex_string_from_bitvector
 
             # next segment
             start = start + 16
@@ -99,14 +95,13 @@ class AESManager:
 
         return result_cipher_text
 
-    def decrypt(self, passphrase: str, ciphertext: str):
+    def decrypt(self, cipher_key: str, ciphertext: str):
         result_plain_text = ""
-        passphrase = self.handler_passphrase(passphrase)
-        print("Passphrase: %s" % passphrase)
-        passphrase = BitVector(textstring=passphrase)
+        cipher_key = self.handler_cipher_key(cipher_key)
+        print("Passphrase: %s" % cipher_key)
+        cipher_key = BitVector(textstring=cipher_key)
         # gen round keys
-        round_keys = self.expand_key(passphrase.get_bitvector_in_hex())
-        # self.gen_round_keys(passphrase)
+        round_keys = self.expand_key(cipher_key.get_bitvector_in_hex())
         print("Cipher text: %s" % ciphertext)
 
         start = 0
@@ -115,33 +110,59 @@ class AESManager:
         count_seg = math.ceil(length / 32)  # so cum 32 bit ( 2 bit 1 ky tu )
         for x in range(count_seg):
             self.debug("Segment #%d" % (x + 1))
-            plaintext_seg = ciphertext[start:end]
+            ciphertext_seg = ciphertext[start:end]
 
             # add round key
-            result_bv = self.add_round_key(hex_str=plaintext_seg, round_key=round_keys[self.rounds])
+            result = self.add_round_key(hex_str=ciphertext_seg, round_key=round_keys[self.rounds])
 
             # inverse shift row
-            inv_shift_row_hex = self.inv_shift_rows(result_bv.get_bitvector_in_hex())
+            result = self.inv_shift_rows(result)
 
             # inverse sub byte
-            inv_sub_byte_hex = self.inv_sub_bytes(inv_shift_row_hex)
+            result = self.inv_sub_bytes(result)
 
             for y in range(self.rounds - 1, 0, -1):
+
                 # add round key
-                result_bv = self.add_round_key(hex_str=inv_sub_byte_hex, round_key=round_keys[y])
+                result = self.add_round_key(hex_str=result, round_key=round_keys[y])
+
                 # mix column
-                inv_mix_column_hex = self.inv_mix_columns(result_bv)
+                result = self.inv_mix_columns(result)
 
                 # inverse shift row
-                inv_shift_row_hex = self.inv_shift_rows(inv_mix_column_hex)
+                result = self.inv_shift_rows(result)
 
                 # inverse sub byte
-                inv_sub_byte_hex = self.inv_sub_bytes(inv_shift_row_hex)
+                result = self.inv_sub_bytes(result)
 
-            # add passphrase
-            result_bv = self.add_round_key(hex_str=inv_sub_byte_hex, round_key=round_keys[0])
-            hex_str = result_bv.get_bitvector_in_hex()
-            output_bv = BitVector(hexstring=self.inv_format_text(hex_str))
+            # add cipher key
+            result = self.add_round_key(hex_str=result, round_key=round_keys[0])
+
+            # result = self.add_round_key(hex_str=ciphertext_seg, round_key=round_keys[0])
+            #
+            # for i in range(1, self.rounds):
+            #     # inverse shift row
+            #     result = self.inv_shift_rows(result)
+            #
+            #     # inverse subbytes
+            #     result = self.inv_sub_bytes(result)
+            #
+            #     # inverse mix columns
+            #     result = self.inv_mix_columns(result)
+            #
+            #     # add round key
+            #     result = self.add_round_key(hex_str=result, round_key=round_keys[i])
+            #
+            # # inverse shift row
+            # result = self.inv_shift_rows(result)
+            #
+            # # inverse sub bytes
+            # result = self.inv_sub_bytes(result)
+            #
+            # # add round key
+            # result = self.add_round_key(hex_str=result, round_key=round_keys[self.rounds])
+
+            output_bv = BitVector(hexstring=self.inv_format_text(result))
             plaintext = output_bv.get_bitvector_in_ascii()
             plaintext = plaintext.replace('\x00', '')
             result_plain_text = result_plain_text + plaintext
@@ -297,7 +318,8 @@ class AESManager:
         return result_hex
 
     @staticmethod
-    def inv_mix_columns(bv):
+    def inv_mix_columns(hex_str):
+        bv = BitVector(hexstring=hex_str)
         bv01 = (bv[0:8])
         bv23 = (bv[8:16])
         bv45 = (bv[16:24])
@@ -427,29 +449,32 @@ class AESManager:
         return inv_mix_column_hex
 
     @staticmethod
-    def add_round_key(*args, **kwargs):
-        hex_str = text_str = round_key = round_key_bv = None
-        if 'hex_str' in kwargs:
-            hex_str = kwargs.pop('hex_str')
-        if 'text_str' in kwargs:
-            text_str = kwargs.pop('text_str')
-        if 'round_key' in kwargs:
-            round_key = kwargs.pop('round_key')
-        if 'round_key_bv' in kwargs:
-            round_key_bv = kwargs.pop('round_key_bv')
+    def add_round_key(hex_str, round_key):
+        # hex_str = text_str = round_key = round_key_bv = None
+        # if 'hex_str' in kwargs:
+        #     hex_str = kwargs.pop('hex_str')
+        # if 'text_str' in kwargs:
+        #     text_str = kwargs.pop('text_str')
+        # if 'round_key' in kwargs:
+        #     round_key = kwargs.pop('round_key')
+        # if 'round_key_bv' in kwargs:
+        #     round_key_bv = kwargs.pop('round_key_bv')
+        #
+        # bv = BitVector(hexstring=hex_str) if text_str is None else BitVector(textstring=text_str)
+        # round_key_bv = BitVector(hexstring=round_key) if round_key_bv is None else round_key_bv
+        bv = BitVector(hexstring=hex_str)
+        round_key_bv = BitVector(hexstring=round_key)
+        result_bv = bv ^ round_key_bv
+        return result_bv.get_bitvector_in_hex()
 
-        bv = BitVector(hexstring=hex_str) if text_str is None else BitVector(textstring=text_str)
-        round_key_bv = BitVector(hexstring=round_key) if round_key_bv is None else round_key_bv
-
-        return bv ^ round_key_bv
-
-    def handler_passphrase(self, passphrase: str):
-        if len(passphrase) > self.passphrase_len:
-            # print("Dai qua %d ky tu, cat bot." % self.passphrase_len)
-            return passphrase[0:self.passphrase_len]
-        if len(passphrase) < self.passphrase_len:
-            # print("It hon %d ky tu, them khoang trang." % self.passphrase_len)
-            return passphrase.ljust(self.passphrase_len, ' ')
+    def handler_cipher_key(self, passphrase: str):
+        passphrase_len = self.cipher_word * 4  # 1 word = 4 chu
+        if len(passphrase) > passphrase_len:
+            self.debug("Dai qua %d ky tu, cat bot." % passphrase_len)
+            return passphrase[0:passphrase_len]
+        if len(passphrase) < passphrase_len:
+            self.debug("It hon %d ky tu, them khoang trang." % passphrase_len)
+            return passphrase.ljust(passphrase_len, ' ')
             # Them khoang trang vao ben phai
         return passphrase
 
