@@ -1,4 +1,5 @@
 import os
+from threading import Thread
 from tkinter import *
 from tkinter import ttk, filedialog as fd, messagebox as mb
 from AESManager import AESManager
@@ -12,24 +13,19 @@ client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 print("Connecting to {}:{}".format(*ADDRESS))
 client.connect(ADDRESS)
 
-def send_message(msg):
-    client.send(msg.encode("utf-8"))
-
-
-def handler_socket():
-    msg = client.recv(2048).decode("utf-8")
-    if msg:
-        pass
 
 class GUI(Tk):
     def __init__(self):
         super().__init__()
         self.geometry('500x400')
+        self.title('AES File Transfer')
+        self.iconbitmap('icon.ico')
         self.cipher_key: ttk.Entry = None
         self.aes_type: ttk.Combobox = None
         self.cipher_text: Text = None
         self.plain_text: Text = None
         self.setup_gui()
+        self.start_socket()
 
     def setup_gui(self):
         row = ttk.Frame(self)
@@ -81,7 +77,7 @@ class GUI(Tk):
             .grid(row=0, column=0)
         ttk.Button(row, text="Lưu file", command=self.save_plain_text) \
             .grid(row=0, column=1)
-        ttk.Button(row, text="Gửi file") \
+        ttk.Button(row, text="Gửi file", command=self.send_file) \
             .grid(row=0, column=2)
         ttk.Button(row, text="Mã hóa", command=self.do_encrypt) \
             .grid(row=0, column=3)
@@ -149,6 +145,36 @@ class GUI(Tk):
             mb.showinfo("Giải mã", "Giải mã thành công")
         except:
             mb.showerror("Lỗi", "Có lỗi xảy ra")
+
+    def start_socket(self):
+        thread = Thread(target=self.receive_file)
+        thread.start()
+
+    def receive_file(self):
+        while True:
+            msg = client.recv(2048).decode("utf-8")
+            if not msg:
+                continue
+            confirm = mb.askyesno("Nhận file", "Bạn vừa nhận được 1 file. Bạn có muốn mở lên không?")
+            if confirm:
+                self.plain_text.delete(0.0, END)
+                self.cipher_text.delete(0.0, END)
+                self.cipher_text.insert(0.0, msg)
+
+
+    def send_file(self):
+        plain_text = self.plain_text.get(0.0, END)[:-1]  # bo 1 ky tu \n cuoi cung
+        cipher_key = self.cipher_key.get()
+        if len(cipher_key) == 0:
+            mb.showerror("Lỗi", "Vui lòng nhập cipher key")
+            return
+        if len(plain_text) == 0:
+            mb.showerror("Lỗi", "Vui lòng nhập plain text")
+            return
+        aes_type = self.aes_type.get()
+        aes = AESManager(int(aes_type[4:]))
+        cipher_text = aes.encrypt(cipher_key, plain_text)
+        client.send(cipher_text.encode("utf-8"))
 
 
 if __name__ == '__main__':

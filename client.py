@@ -3,16 +3,15 @@ import socket
 import time
 from threading import Thread
 from AESManager import AESManager
-
+from socket_config import ADDRESS
 aes = AESManager()
 PASSPHRASE = "secretkeyaes"
 HEADER = 1024
-IP = socket.gethostbyname(socket.gethostname())
-PORT = 1237
+
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-print("Connecting to {}:{}".format(IP, PORT))
-client.connect((IP, PORT))
+print("Connecting to {}:{}".format(*ADDRESS))
+client.connect(ADDRESS)
 
 
 def send_message(msg):
