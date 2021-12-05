@@ -1,6 +1,8 @@
 from BitVector import BitVector
-from utils import s_box_table, text_to_number, iv_s_box_table
+from utils import s_box_table, text_to_number, iv_s_box_table, matrixGF
 import math
+
+xtime = lambda a: (((a << 1) ^ 0x1B) & 0xFF) if (a & 0x80) else (a << 1)
 
 
 class AESManager:
@@ -122,7 +124,6 @@ class AESManager:
             result = self.inv_sub_bytes(result)
 
             for y in range(self.rounds - 1, 0, -1):
-
                 # add round key
                 result = self.add_round_key(hex_str=result, round_key=round_keys[y])
 
@@ -193,275 +194,89 @@ class AESManager:
 
     @staticmethod
     def shift_rows(hex_str):
-        if len(hex_str) == 8:
-            result = hex_str[2:8] + hex_str[0:2]
-            return result
-        else:
-            # Hang 1 giu nguyen 0 5 10 15
-            result = hex_str[0:2] + hex_str[10: 12] + hex_str[20:22] + hex_str[30:32]
-            # Hang 2 dich 1 byte 4 9 14 3
-            result = result + hex_str[8:10] + hex_str[18:20] + hex_str[28:30] + hex_str[6:8]
-            # Hang 3 dich 2 byte 8 13 2 7
-            result = result + hex_str[16:18] + hex_str[26:28] + hex_str[4:6] + hex_str[14:16]
-            # Hang 4 dich 3 byte 12 1 6 11
-            result = result + hex_str[24:26] + hex_str[2:4] + hex_str[12:14] + hex_str[22:24]
-            return result
+        """
+        0 4 8  12     0  4  8  12 # Giữ nguyên
+        1 5 9  13     5  9  13 1  # Dịch trái 1
+        2 6 10 14  => 10 14 2  6  # Dịch trái 2
+        3 7 11 15     15 3  7  11 # Dịch trái 3
+        """
+        # Cot 1 -> 0 5 10 15
+        result = hex_str[0:2] + hex_str[10: 12] + hex_str[20:22] + hex_str[30:32]
+        # Cột 2 -> 4 9 14 3
+        result = result + hex_str[8:10] + hex_str[18:20] + hex_str[28:30] + hex_str[6:8]
+        # Cột 3 -> 8 13 2 7
+        result = result + hex_str[16:18] + hex_str[26:28] + hex_str[4:6] + hex_str[14:16]
+        # Cột 4 -> 12 1 5 11
+        result = result + hex_str[24:26] + hex_str[2:4] + hex_str[12:14] + hex_str[22:24]
+        return result
+
+    @staticmethod
+    def rot_word(hex_str):
+        result = hex_str[2:8] + hex_str[0:2]
+        return result
 
     @staticmethod
     def inv_shift_rows(hex_str):
-        if len(hex_str) == 8:
-            result = hex_str[6:8] + hex_str[0:2] + hex_str[2:4] + hex_str[4:6]
-            return result
-        else:
-            # Hang 1 giu nguyen 0 5 10 15
-            result = hex_str[0:2] + hex_str[26:28] + hex_str[20:22] + hex_str[14:16]
-            # Hang 2 dich 1 byte 4 9 14 3
-            result = result + hex_str[8:10] + hex_str[2:4] + hex_str[28:30] + hex_str[22:24]
-            # Hang 3 dich 2 byte 8 13 2 7
-            result = result + hex_str[16:18] + hex_str[10:12] + hex_str[4:6] + hex_str[30:32]
-            # Hang 4 dich 3 byte 12 1 6 11
-            result = result + hex_str[24:26] + hex_str[18:20] + hex_str[12:14] + hex_str[6:8]
-            return result
+        """
+        0 4 8  12     0  4  8  12  # Giữ nguyên
+        1 5 9  13     13 1  5  9   # Dịch phải 1
+        2 6 10 14  => 10 14 2  6   # Dịch phải 2
+        3 7 11 15     7  11 15 3   # Dịch phải 3
+        """
+        # Cột 1 -> 0 13 10 7
+        result = hex_str[0:2] + hex_str[26:28] + hex_str[20:22] + hex_str[14:16]
+        # Cột 2 -> 4 1 14 11
+        result = result + hex_str[8:10] + hex_str[2:4] + hex_str[28:30] + hex_str[22:24]
+        # Cột 3 -> 8 5 2 15
+        result = result + hex_str[16:18] + hex_str[10:12] + hex_str[4:6] + hex_str[30:32]
+        # Cột 4 -> 12 9 6 3
+        result = result + hex_str[24:26] + hex_str[18:20] + hex_str[12:14] + hex_str[6:8]
+        return result
+
+    @staticmethod
+    def mix_single_column(word):  # hàm mix column cho 1 word - gồm 1 mảng 4 số
+        # Sec 4.1.2 iThe Design of Rijndael
+        t = word[0] ^ word[1] ^ word[2] ^ word[3]
+        u = word[0]
+        word[0] ^= t ^ xtime(word[0] ^ word[1])
+        word[1] ^= t ^ xtime(word[1] ^ word[2])
+        word[2] ^= t ^ xtime(word[2] ^ word[3])
+        word[3] ^= t ^ xtime(word[3] ^ u)
+        result = ""
+        for i in range(4):
+            result += hex(word[i])[2:].rjust(2, '0')
+        return result
 
     @staticmethod
     def mix_columns(hex_str):
-        bv = BitVector(hexstring=hex_str)
-        bv01 = (bv[0:8])
-        bv23 = (bv[8:16])
-        bv45 = (bv[16:24])
-        bv67 = (bv[24:32])
-        bv89 = (bv[32:40])
-        bv1011 = (bv[40:48])
-        bv1213 = (bv[48:56])
-        bv1415 = (bv[56:64])
-        bv1617 = (bv[64:72])
-        bv1819 = (bv[72:80])
-        bv2021 = (bv[80:88])
-        bv2223 = (bv[88:96])
-        bv2425 = (bv[96:104])
-        bv2627 = (bv[104:112])
-        bv2829 = (bv[112:120])
-        bv3031 = (bv[120:128])
-
-        eightlim = BitVector(bitstring='100011011')
-        one = BitVector(bitstring='0001')
-        two = BitVector(bitstring='0010')
-        three = BitVector(bitstring='0011')
-
-        tempbv1 = bv01.gf_multiply_modular(two, eightlim, 8)
-        tempbv2 = bv23.gf_multiply_modular(three, eightlim, 8)
-        newbv01 = tempbv1 ^ tempbv2 ^ bv45 ^ bv67
-
-        tempbv2 = bv23.gf_multiply_modular(two, eightlim, 8)
-        tempbv3 = bv45.gf_multiply_modular(three, eightlim, 8)
-        newbv23 = bv01 ^ tempbv2 ^ tempbv3 ^ bv67
-
-        tempbv3 = bv45.gf_multiply_modular(two, eightlim, 8)
-        tempbv4 = bv67.gf_multiply_modular(three, eightlim, 8)
-        newbv45 = bv01 ^ bv23 ^ tempbv3 ^ tempbv4
-
-        tempbv1 = bv01.gf_multiply_modular(three, eightlim, 8)
-        tempbv4 = bv67.gf_multiply_modular(two, eightlim, 8)
-        newbv67 = tempbv1 ^ bv23 ^ bv45 ^ tempbv4
-
-        tempbv1 = bv89.gf_multiply_modular(two, eightlim, 8)
-        tempbv2 = bv1011.gf_multiply_modular(three, eightlim, 8)
-        newbv89 = tempbv1 ^ tempbv2 ^ bv1213 ^ bv1415
-
-        tempbv2 = bv1011.gf_multiply_modular(two, eightlim, 8)
-        tempbv3 = bv1213.gf_multiply_modular(three, eightlim, 8)
-        newbv1011 = bv89 ^ tempbv2 ^ tempbv3 ^ bv1415
-
-        tempbv3 = bv1213.gf_multiply_modular(two, eightlim, 8)
-        tempbv4 = bv1415.gf_multiply_modular(three, eightlim, 8)
-        newbv1213 = bv89 ^ bv1011 ^ tempbv3 ^ tempbv4
-
-        tempbv1 = bv89.gf_multiply_modular(three, eightlim, 8)
-        tempbv4 = bv1415.gf_multiply_modular(two, eightlim, 8)
-        newbv1415 = tempbv1 ^ bv1011 ^ bv1213 ^ tempbv4
-
-        tempbv1 = bv1617.gf_multiply_modular(two, eightlim, 8)
-        tempbv2 = bv1819.gf_multiply_modular(three, eightlim, 8)
-        newbv1617 = tempbv1 ^ tempbv2 ^ bv2021 ^ bv2223
-
-        tempbv2 = bv1819.gf_multiply_modular(two, eightlim, 8)
-        tempbv3 = bv2021.gf_multiply_modular(three, eightlim, 8)
-        newbv1819 = bv1617 ^ tempbv2 ^ tempbv3 ^ bv2223
-
-        tempbv3 = bv2021.gf_multiply_modular(two, eightlim, 8)
-        tempbv4 = bv2223.gf_multiply_modular(three, eightlim, 8)
-        newbv2021 = bv1617 ^ bv1819 ^ tempbv3 ^ tempbv4
-
-        tempbv1 = bv1617.gf_multiply_modular(three, eightlim, 8)
-        tempbv4 = bv2223.gf_multiply_modular(two, eightlim, 8)
-        newbv2223 = tempbv1 ^ bv1819 ^ bv2021 ^ tempbv4
-
-        tempbv1 = bv2425.gf_multiply_modular(two, eightlim, 8)
-        tempbv2 = bv2627.gf_multiply_modular(three, eightlim, 8)
-        newbv2425 = tempbv1 ^ tempbv2 ^ bv2829 ^ bv3031
-
-        tempbv2 = bv2627.gf_multiply_modular(two, eightlim, 8)
-        tempbv3 = bv2829.gf_multiply_modular(three, eightlim, 8)
-        newbv2627 = bv2425 ^ tempbv2 ^ tempbv3 ^ bv3031
-
-        tempbv3 = bv2829.gf_multiply_modular(two, eightlim, 8)
-        tempbv4 = bv3031.gf_multiply_modular(three, eightlim, 8)
-        newbv2829 = bv2425 ^ bv2627 ^ tempbv3 ^ tempbv4
-
-        tempbv1 = bv2425.gf_multiply_modular(three, eightlim, 8)
-        tempbv4 = bv3031.gf_multiply_modular(two, eightlim, 8)
-        newbv3031 = tempbv1 ^ bv2627 ^ bv2829 ^ tempbv4
-
-        result_bv = newbv01 + newbv23 + newbv45 + newbv67 + newbv89 + newbv1011 + newbv1213 + newbv1415 + newbv1617 + \
-                    newbv1819 + newbv2021 + newbv2223 + newbv2425 + newbv2627 + newbv2829 + newbv3031
-        result_hex = result_bv.get_bitvector_in_hex()
-        return result_hex
+        dec_vector = BitVector(hexstring=hex_str).get_decimal_vector()
+        result = ""
+        for i in range(0, len(dec_vector), 4):
+            # mix column từng hàng
+            # result = AESManager.mix_single_column(hex_str[i * 8: (i+1) *8])
+            result += AESManager.mix_single_column(dec_vector[i: i + 4])
+        return result
 
     @staticmethod
     def inv_mix_columns(hex_str):
-        bv = BitVector(hexstring=hex_str)
-        bv01 = (bv[0:8])
-        bv23 = (bv[8:16])
-        bv45 = (bv[16:24])
-        bv67 = (bv[24:32])
-        bv89 = (bv[32:40])
-        bv1011 = (bv[40:48])
-        bv1213 = (bv[48:56])
-        bv1415 = (bv[56:64])
-        bv1617 = (bv[64:72])
-        bv1819 = (bv[72:80])
-        bv2021 = (bv[80:88])
-        bv2223 = (bv[88:96])
-        bv2425 = (bv[96:104])
-        bv2627 = (bv[104:112])
-        bv2829 = (bv[112:120])
-        bv3031 = (bv[120:128])
-
-        eightlim = BitVector(bitstring='100011011')
-        one = BitVector(bitstring='0001')
-        two = BitVector(bitstring='0010')
-        three = BitVector(bitstring='0011')
-        nine = BitVector(bitstring='1001')
-        eleven = BitVector(bitstring='1011')
-        thirteen = BitVector(bitstring='1101')
-        fourteen = BitVector(bitstring='1110')
-
-        tempbv1 = bv01.gf_multiply_modular(fourteen, eightlim, 8)  # done
-        tempbv2 = bv23.gf_multiply_modular(eleven, eightlim, 8)
-        tempbv3 = bv45.gf_multiply_modular(thirteen, eightlim, 8)
-        tempbv4 = bv67.gf_multiply_modular(nine, eightlim, 8)
-        newbv01 = tempbv1 ^ tempbv2 ^ tempbv3 ^ tempbv4
-
-        tempbv1 = bv01.gf_multiply_modular(nine, eightlim, 8)  # done
-        tempbv2 = bv23.gf_multiply_modular(fourteen, eightlim, 8)
-        tempbv3 = bv45.gf_multiply_modular(eleven, eightlim, 8)
-        tempbv4 = bv67.gf_multiply_modular(thirteen, eightlim, 8)
-        newbv23 = tempbv1 ^ tempbv2 ^ tempbv3 ^ tempbv4
-
-        tempbv1 = bv01.gf_multiply_modular(thirteen, eightlim, 8)  # done
-        tempbv2 = bv23.gf_multiply_modular(nine, eightlim, 8)
-        tempbv3 = bv45.gf_multiply_modular(fourteen, eightlim, 8)
-        tempbv4 = bv67.gf_multiply_modular(eleven, eightlim, 8)
-        newbv45 = tempbv1 ^ tempbv2 ^ tempbv3 ^ tempbv4
-
-        tempbv1 = bv01.gf_multiply_modular(eleven, eightlim, 8)  # done
-        tempbv2 = bv23.gf_multiply_modular(thirteen, eightlim, 8)
-        tempbv3 = bv45.gf_multiply_modular(nine, eightlim, 8)
-        tempbv4 = bv67.gf_multiply_modular(fourteen, eightlim, 8)
-        newbv67 = tempbv1 ^ tempbv2 ^ tempbv3 ^ tempbv4
-
-        tempbv1 = bv89.gf_multiply_modular(fourteen, eightlim, 8)  # done
-        tempbv2 = bv1011.gf_multiply_modular(eleven, eightlim, 8)
-        tempbv3 = bv1213.gf_multiply_modular(thirteen, eightlim, 8)
-        tempbv4 = bv1415.gf_multiply_modular(nine, eightlim, 8)
-        newbv89 = tempbv1 ^ tempbv2 ^ tempbv3 ^ tempbv4
-
-        tempbv1 = bv89.gf_multiply_modular(nine, eightlim, 8)  # done
-        tempbv2 = bv1011.gf_multiply_modular(fourteen, eightlim, 8)
-        tempbv3 = bv1213.gf_multiply_modular(eleven, eightlim, 8)
-        tempbv4 = bv1415.gf_multiply_modular(thirteen, eightlim, 8)
-        newbv1011 = tempbv1 ^ tempbv2 ^ tempbv3 ^ tempbv4
-
-        tempbv1 = bv89.gf_multiply_modular(thirteen, eightlim, 8)  # done
-        tempbv2 = bv1011.gf_multiply_modular(nine, eightlim, 8)
-        tempbv3 = bv1213.gf_multiply_modular(fourteen, eightlim, 8)
-        tempbv4 = bv1415.gf_multiply_modular(eleven, eightlim, 8)
-        newbv1213 = tempbv1 ^ tempbv2 ^ tempbv3 ^ tempbv4
-
-        tempbv1 = bv89.gf_multiply_modular(eleven, eightlim, 8)  # done
-        tempbv2 = bv1011.gf_multiply_modular(thirteen, eightlim, 8)
-        tempbv3 = bv1213.gf_multiply_modular(nine, eightlim, 8)
-        tempbv4 = bv1415.gf_multiply_modular(fourteen, eightlim, 8)
-        newbv1415 = tempbv1 ^ tempbv2 ^ tempbv3 ^ tempbv4
-
-        tempbv1 = bv1617.gf_multiply_modular(fourteen, eightlim, 8)  # done
-        tempbv2 = bv1819.gf_multiply_modular(eleven, eightlim, 8)
-        tempbv3 = bv2021.gf_multiply_modular(thirteen, eightlim, 8)
-        tempbv4 = bv2223.gf_multiply_modular(nine, eightlim, 8)
-        newbv1617 = tempbv1 ^ tempbv2 ^ tempbv3 ^ tempbv4
-
-        tempbv1 = bv1617.gf_multiply_modular(nine, eightlim, 8)  # done
-        tempbv2 = bv1819.gf_multiply_modular(fourteen, eightlim, 8)
-        tempbv3 = bv2021.gf_multiply_modular(eleven, eightlim, 8)
-        tempbv4 = bv2223.gf_multiply_modular(thirteen, eightlim, 8)
-        newbv1819 = tempbv1 ^ tempbv2 ^ tempbv3 ^ tempbv4
-
-        tempbv1 = bv1617.gf_multiply_modular(thirteen, eightlim, 8)  # done
-        tempbv2 = bv1819.gf_multiply_modular(nine, eightlim, 8)
-        tempbv3 = bv2021.gf_multiply_modular(fourteen, eightlim, 8)
-        tempbv4 = bv2223.gf_multiply_modular(eleven, eightlim, 8)
-        newbv2021 = tempbv1 ^ tempbv2 ^ tempbv3 ^ tempbv4
-
-        tempbv1 = bv1617.gf_multiply_modular(eleven, eightlim, 8)  # done
-        tempbv2 = bv1819.gf_multiply_modular(thirteen, eightlim, 8)
-        tempbv3 = bv2021.gf_multiply_modular(nine, eightlim, 8)
-        tempbv4 = bv2223.gf_multiply_modular(fourteen, eightlim, 8)
-        newbv2223 = tempbv1 ^ tempbv2 ^ tempbv3 ^ tempbv4
-
-        tempbv1 = bv2425.gf_multiply_modular(fourteen, eightlim, 8)  # done
-        tempbv2 = bv2627.gf_multiply_modular(eleven, eightlim, 8)
-        tempbv3 = bv2829.gf_multiply_modular(thirteen, eightlim, 8)
-        tempbv4 = bv3031.gf_multiply_modular(nine, eightlim, 8)
-        newbv2425 = tempbv1 ^ tempbv2 ^ tempbv3 ^ tempbv4
-
-        tempbv1 = bv2425.gf_multiply_modular(nine, eightlim, 8)  # done
-        tempbv2 = bv2627.gf_multiply_modular(fourteen, eightlim, 8)
-        tempbv3 = bv2829.gf_multiply_modular(eleven, eightlim, 8)
-        tempbv4 = bv3031.gf_multiply_modular(thirteen, eightlim, 8)
-        newbv2627 = tempbv1 ^ tempbv2 ^ tempbv3 ^ tempbv4
-
-        tempbv1 = bv2425.gf_multiply_modular(thirteen, eightlim, 8)  # done
-        tempbv2 = bv2627.gf_multiply_modular(nine, eightlim, 8)
-        tempbv3 = bv2829.gf_multiply_modular(fourteen, eightlim, 8)
-        tempbv4 = bv3031.gf_multiply_modular(eleven, eightlim, 8)
-        newbv2829 = tempbv1 ^ tempbv2 ^ tempbv3 ^ tempbv4
-
-        tempbv1 = bv2425.gf_multiply_modular(eleven, eightlim, 8)  # done
-        tempbv2 = bv2627.gf_multiply_modular(thirteen, eightlim, 8)
-        tempbv3 = bv2829.gf_multiply_modular(nine, eightlim, 8)
-        tempbv4 = bv3031.gf_multiply_modular(fourteen, eightlim, 8)
-        newbv3031 = tempbv1 ^ tempbv2 ^ tempbv3 ^ tempbv4
-
-        inv_mix_column_bv = newbv01 + newbv23 + newbv45 + newbv67 + newbv89 + newbv1011 + newbv1213 + newbv1415 + \
-                            newbv1617 + newbv1819 + newbv2021 + newbv2223 + newbv2425 + newbv2627 + newbv2829 + \
-                            newbv3031
-        inv_mix_column_hex = inv_mix_column_bv.get_bitvector_in_hex()
-        return inv_mix_column_hex
+        s = BitVector(hexstring=hex_str).get_decimal_vector()
+        for i in range(4):
+            # Sec 4.1.3 in The Design of Rijndael
+            # Nghịch đảo ma trận
+            u = xtime(xtime(s[i * 4] ^ s[i * 4 + 2]))
+            v = xtime(xtime(s[i * 4 + 1] ^ s[i * 4 + 3]))
+            s[i * 4 + 0] ^= u
+            s[i * 4 + 1] ^= v
+            s[i * 4 + 2] ^= u
+            s[i * 4 + 3] ^= v
+        result = ""
+        for i in range(len(s)):
+            result += hex(s[i])[2:].rjust(2, '0')
+        # Làm tương tự mix column nhưng đã nghịch đảo ma trận
+        return AESManager.mix_columns(result)
 
     @staticmethod
     def add_round_key(hex_str, round_key):
-        # hex_str = text_str = round_key = round_key_bv = None
-        # if 'hex_str' in kwargs:
-        #     hex_str = kwargs.pop('hex_str')
-        # if 'text_str' in kwargs:
-        #     text_str = kwargs.pop('text_str')
-        # if 'round_key' in kwargs:
-        #     round_key = kwargs.pop('round_key')
-        # if 'round_key_bv' in kwargs:
-        #     round_key_bv = kwargs.pop('round_key_bv')
-        #
-        # bv = BitVector(hexstring=hex_str) if text_str is None else BitVector(textstring=text_str)
-        # round_key_bv = BitVector(hexstring=round_key) if round_key_bv is None else round_key_bv
         bv = BitVector(hexstring=hex_str)
         round_key_bv = BitVector(hexstring=round_key)
         result_bv = bv ^ round_key_bv
@@ -496,7 +311,7 @@ class AESManager:
             before = cipher_key[n_bit - 8: n_bit]
 
             # Rotate word
-            before = self.shift_rows(before)
+            before = self.rot_word(before)
 
             # sub bytes
             before = self.sub_bytes(before)

@@ -2200,6 +2200,12 @@ class BitVector(object):
         return ''.join(map(lambda x: x.replace('0x', ''), \
                            map(hex, map(int, [self[i:i + 4] for i in range(0, self.size, 4)]))))
 
+    def get_decimal_vector(self):
+        hex_str = self.get_bitvector_in_hex()
+        result = []
+        for i in range(0, len(hex_str), 2):
+            result.append(int(hex_str[i: i+ 2], 16))
+        return result
     # For backward compatibility:
     get_hex_string_from_bitvector = get_bitvector_in_hex
     getHexStringFromBitVector = get_bitvector_in_hex
@@ -3128,6 +3134,7 @@ class BitVectorIterator:
             raise StopIteration
 
     __next__ = next
+
 
 # -----------------------------------  End of Class Definition -------------------------------
 

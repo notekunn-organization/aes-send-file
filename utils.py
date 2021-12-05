@@ -74,3 +74,8 @@ iv_part15 = ['17', '2b', '04', '7e', 'ba', '77', 'd6', '26', 'e1', '69', '14', '
 
 iv_s_box_table = [iv_part0, iv_part1, iv_part2, iv_part3, iv_part4, iv_part5, iv_part6, iv_part7, iv_part8, iv_part9,
                   iv_part10, iv_part11, iv_part12, iv_part13, iv_part14, iv_part15]
+
+matrixGF = [[2, 3, 1, 1],
+            [1, 2, 3, 1],
+            [1, 1, 2, 3],
+            [3, 1, 1, 2]]
