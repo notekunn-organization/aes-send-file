@@ -2,10 +2,10 @@ from datetime import datetime
 
 from AESManager import AESManager
 type = 128
-key = "cuongdeptrai"
+key = "0123456789ABCDEF"
 aes = AESManager(type)
 start_time = datetime.now()
-cipher_text = aes.encrypt(key, "cuongdeptrai")
+cipher_text = aes.encrypt(key, "0123456789ABCDEF")
 print("Cipher text: %s" % cipher_text)
 print("Time encrypt : ", datetime.now()-start_time)
 aes = AESManager(type)

@@ -136,6 +136,7 @@ class GUI(Tk):
                 return
             if len(cipher_text) == 0 or len(cipher_text) % 32 != 0:
                 mb.showerror("Lỗi", "Cipher text không hợp lệ")
+                return
 
             aes_type = self.aes_type.get()
             aes = AESManager(int(aes_type[4:]))
