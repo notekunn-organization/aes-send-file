@@ -282,16 +282,16 @@ class AESManager:
         result_bv = bv ^ round_key_bv
         return result_bv.get_bitvector_in_hex()
 
-    def handler_cipher_key(self, passphrase: str):
-        passphrase_len = self.cipher_word * 4  # 1 word = 4 chu
-        if len(passphrase) > passphrase_len:
-            self.debug("Dai qua %d ky tu, cat bot." % passphrase_len)
-            return passphrase[0:passphrase_len]
-        if len(passphrase) < passphrase_len:
-            self.debug("It hon %d ky tu, them khoang trang." % passphrase_len)
-            return passphrase.ljust(passphrase_len, ' ')
+    def handler_cipher_key(self, cipher_key: str):
+        cipher_key_len = self.cipher_word * 4  # 1 word = 4 chu
+        if len(cipher_key) > cipher_key_len:
+            self.debug("Dai qua %d ky tu, cat bot." % cipher_key_len)
+            return cipher_key[0:cipher_key_len]
+        if len(cipher_key) < cipher_key_len:
+            self.debug("It hon %d ky tu, them khoang trang." % cipher_key_len)
+            return cipher_key.ljust(cipher_key_len, ' ')
             # Them khoang trang vao ben phai
-        return passphrase
+        return cipher_key
 
     @staticmethod
     def xor(hex1, hex2):
