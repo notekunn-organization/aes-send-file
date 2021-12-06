@@ -1,5 +1,5 @@
 from BitVector import BitVector
-from utils import s_box_table, text_to_number, iv_s_box_table, matrixGF
+from utils import s_box_table, text_to_number, iv_s_box_table
 import math
 
 xtime = lambda a: (((a << 1) ^ 0x1B) & 0xFF) if (a & 0x80) else (a << 1)
@@ -138,30 +138,6 @@ class AESManager:
 
             # add cipher key
             result = self.add_round_key(hex_str=result, round_key=round_keys[0])
-
-            # result = self.add_round_key(hex_str=ciphertext_seg, round_key=round_keys[0])
-            #
-            # for i in range(1, self.rounds):
-            #     # inverse shift row
-            #     result = self.inv_shift_rows(result)
-            #
-            #     # inverse subbytes
-            #     result = self.inv_sub_bytes(result)
-            #
-            #     # inverse mix columns
-            #     result = self.inv_mix_columns(result)
-            #
-            #     # add round key
-            #     result = self.add_round_key(hex_str=result, round_key=round_keys[i])
-            #
-            # # inverse shift row
-            # result = self.inv_shift_rows(result)
-            #
-            # # inverse sub bytes
-            # result = self.inv_sub_bytes(result)
-            #
-            # # add round key
-            # result = self.add_round_key(hex_str=result, round_key=round_keys[self.rounds])
 
             output_bv = BitVector(hexstring=self.inv_format_text(result))
             plaintext = output_bv.get_bitvector_in_ascii()
@@ -305,52 +281,36 @@ class AESManager:
                  '20000000', '40000000', '80000000', '1b000000', '36000000',
                  '6c000000', 'd8000000', 'ab000000', '4d000000']
         max_word = (self.rounds + 1) * 4
-        for n_w in range(self.cipher_word, max_word, 4):
-            n_bit = n_w * 8
-            # 1 word 8 bit hex
-            before = cipher_key[n_bit - 8: n_bit]
+        i = 0
+        for n_w in range(self.cipher_word, max_word, 1):
+            # Copy previous word
+            n_bit = n_w * 8  # 1 word 8 bit hex
+            word = cipher_key[n_bit - 8: n_bit]
+            # Schedule_core mỗi 1 row
+            if n_w % self.cipher_word == 0:
+                # Rotate word
+                word = self.rot_word(word)
 
-            # Rotate word
-            before = self.rot_word(before)
+                # sub bytes
+                word = self.sub_bytes(word)
 
-            # sub bytes
-            before = self.sub_bytes(before)
+                # xor Rcon
+                word = self.xor(word, r_con[i])
+                # increase i
+                i = i + 1
+            elif self.cipher_word == 8 and n_w % self.cipher_word == 4:
+                # Sub bytes mỗi 4 word khi sử dụng
+                # 256-bit key.
+                word = self.sub_bytes(word)
 
-            # xor rcon
-            before = self.xor(before, r_con[math.ceil(n_w / 4) - 1])
-
-            for i in range(32, 0, -8):
-                w = cipher_key[n_bit - i: n_bit - i + 8]
-                w4 = self.xor(w, before)
-                before = w4
-                cipher_key = cipher_key + w4
-        round_key = []
-        for i in range(self.rounds + 1):
-            round_key.append(cipher_key[i * 32: (i + 1) * 32])
-        return round_key
-
-    # def find_round_key(self, bv, case):
-    #     r_con = ['01000000', '02000000', '04000000', '08000000', '10000000',
-    #              '20000000', '40000000', '80000000', '1b000000', '36000000',
-    #              '6c000000', 'd8000000', 'ab000000', '4d000000']
-    #     # words
-    #     w0 = bv[0:8]
-    #     w1 = bv[8:16]
-    #     w2 = bv[16:24]
-    #     w3 = bv[24:32]
-    #     # last word
-    #     w = bv[24:32]
-    #     # rotate word
-    #     w = self.shift_rows(w)
-    #     # sub bytes
-    #     w = self.sub_bytes(w)
-    #     # xor Rcon
-    #     w = self.xor(w, r_con[case])
-    #     w4 = self.xor(w0, w)
-    #     w5 = self.xor(w1, w4)
-    #     w6 = self.xor(w2, w5)
-    #     w7 = self.xor(w3, w6)
-    #     return w4 + w5 + w6 + w7
+            # Word tương đương
+            previous = cipher_key[(n_w - self.cipher_word) * 8: (n_w - self.cipher_word + 1) * 8]
+            # Xor với word tương đương
+            word = self.xor(word, previous)
+            # Nối vào
+            cipher_key = cipher_key + word
+        # Trả về các tập hợp 32bit = 4 word = 1 round key
+        return [cipher_key[32 * i: 32 * (i + 1)] for i in range(len(cipher_key) // 32)]
 
     @staticmethod
     def format_text(text: str):
