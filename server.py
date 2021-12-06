@@ -20,7 +20,9 @@ def handle_client(conn, adr):
                     connected = False
                 broadcast(msg, conn)
         except ConnectionResetError:
-            clients.remove(conn)
+            conn.close()
+            if conn in clients:
+                clients.remove(conn)
     conn.close()
 
 
