@@ -49,40 +49,57 @@ class GUI(Tk):
         entry.pack(side=LEFT, expand=True, fill=X)
 
         row = ttk.Frame(self)
-        lbl = ttk.Label(row, width=16, text="Plain Text: ", anchor='w')
-        self.plain_text = txt = Text(row, height=5)
-        txt.configure(font=("JetBrains Mono", 12))
-
+        lbl = ttk.Label(row, width=16, text="Plain File: ", anchor='w')
+        plain_file = ttk.Entry(row)
+        plain_file.configure(font=("JetBrains Mono", 10))
+        btnLoadText = ttk.Button(row, text="...")
         row.pack(side=TOP, fill=X, padx=5, pady=5)
         lbl.pack(side=LEFT)
-        txt.pack(fill=BOTH)
-
-        spr = ttk.Separator(self, orient='horizontal')
-        spr.pack(fill=X, pady=5, padx=10)
+        btnLoadText.pack(side=RIGHT, padx=10)
+        plain_file.pack(fill=X, expand=True)
 
         row = ttk.Frame(self)
-        lbl = ttk.Label(row, width=16, text="Cipher Text: ")
-        self.cipher_text = txt = Text(row, height=5)
-        txt.configure(font=("JetBrains Mono", 12))
-
+        lbl = ttk.Label(row, width=16, text="Cipher File: ", anchor='w')
+        cipher_file = ttk.Entry(row)
+        cipher_file.configure(font=("JetBrains Mono", 10))
+        btnLoadText = ttk.Button(row, text="...")
         row.pack(side=TOP, fill=X, padx=5, pady=5)
         lbl.pack(side=LEFT)
-        txt.pack(fill=BOTH)
-
-        row = Frame(self)
-        row.pack(side=BOTTOM, fill=X, padx=15, pady=15)
-        for i in range(5):
-            row.columnconfigure(i, weight=1)
-        ttk.Button(row, text="Đọc file", command=self.load_plain_text) \
-            .grid(row=0, column=0)
-        ttk.Button(row, text="Lưu file", command=self.save_plain_text) \
-            .grid(row=0, column=1)
-        ttk.Button(row, text="Gửi file", command=self.send_file) \
-            .grid(row=0, column=2)
-        ttk.Button(row, text="Mã hóa", command=self.do_encrypt) \
-            .grid(row=0, column=3)
-        ttk.Button(row, text="Giải mã", command=self.do_decrypt) \
-            .grid(row=0, column=4)
+        btnLoadText.pack(side=RIGHT, padx=10)
+        cipher_file.pack(fill=X, expand=True)
+        # self.plain_text = txt = Text(row, height=5)
+        # txt.configure(font=("JetBrains Mono", 12))
+        #
+        # row.pack(side=TOP, fill=X, padx=5, pady=5)
+        # lbl.pack(side=LEFT)
+        # txt.pack(fill=BOTH)
+        #
+        # spr = ttk.Separator(self, orient='horizontal')
+        # spr.pack(fill=X, pady=5, padx=10)
+        #
+        # row = ttk.Frame(self)
+        # lbl = ttk.Label(row, width=16, text="Cipher Text: ")
+        # self.cipher_text = txt = Text(row, height=5)
+        # txt.configure(font=("JetBrains Mono", 12))
+        #
+        # row.pack(side=TOP, fill=X, padx=5, pady=5)
+        # lbl.pack(side=LEFT)
+        # txt.pack(fill=BOTH)
+        #
+        # row = Frame(self)
+        # row.pack(side=BOTTOM, fill=X, padx=15, pady=15)
+        # for i in range(5):
+        #     row.columnconfigure(i, weight=1)
+        # ttk.Button(row, text="Đọc file", command=self.load_plain_text) \
+        #     .grid(row=0, column=0)
+        # ttk.Button(row, text="Lưu file", command=self.save_plain_text) \
+        #     .grid(row=0, column=1)
+        # ttk.Button(row, text="Gửi file", command=self.send_file) \
+        #     .grid(row=0, column=2)
+        # ttk.Button(row, text="Mã hóa", command=self.do_encrypt) \
+        #     .grid(row=0, column=3)
+        # ttk.Button(row, text="Giải mã", command=self.do_decrypt) \
+        #     .grid(row=0, column=4)
 
     def load_plain_text(self, *args):
         file_path = fd.askopenfilename(title="Chọn file Plain Text", defaultextension=file_ext, filetypes=file_ext)
@@ -112,14 +129,15 @@ class GUI(Tk):
         try:
             plain_text = self.plain_text.get(0.0, END)[:-1]  # bo 1 ky tu \n cuoi cung
             cipher_key = self.cipher_key.get()
-            if len(cipher_key) == 0:
-                mb.showerror("Lỗi", "Vui lòng nhập cipher key")
+            aes_type = self.aes_type.get()
+            aes = AESManager(int(aes_type[4:]))
+            cipher_key_error = aes.valid_cipher_key(cipher_key)
+            if cipher_key_error is not None:
+                mb.showerror("Lỗi cipher key", cipher_key_error)
                 return
             if len(plain_text) == 0:
                 mb.showerror("Lỗi", "Vui lòng nhập plain text")
                 return
-            aes_type = self.aes_type.get()
-            aes = AESManager(int(aes_type[4:]))
             cipher_text = aes.encrypt(cipher_key, plain_text)
             self.cipher_text.delete(0.0, END)
             self.cipher_text.insert(0.0, cipher_text)
@@ -131,15 +149,16 @@ class GUI(Tk):
         try:
             cipher_text = self.cipher_text.get(0.0, END)[:-1]  # bo 1 ky tu \n cuoi cung
             cipher_key = self.cipher_key.get()
-            if len(cipher_key) == 0:
-                mb.showerror("Lỗi", "Vui lòng nhập cipher key")
+            aes_type = self.aes_type.get()
+            aes = AESManager(int(aes_type[4:]))
+            cipher_key_error = aes.valid_cipher_key(cipher_key)
+            if cipher_key_error is not None:
+                mb.showerror("Lỗi cipher key", cipher_key_error)
                 return
             if len(cipher_text) == 0 or len(cipher_text) % 32 != 0:
                 mb.showerror("Lỗi", "Cipher text không hợp lệ")
                 return
 
-            aes_type = self.aes_type.get()
-            aes = AESManager(int(aes_type[4:]))
             plain_text = aes.decrypt(cipher_key, cipher_text)
             self.plain_text.delete(0.0, END)
             self.plain_text.insert(0.0, plain_text)

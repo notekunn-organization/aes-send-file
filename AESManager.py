@@ -41,6 +41,7 @@ class AESManager:
         cipher_key = BitVector(textstring=cipher_key)
         # gen round keys
         round_keys = self.expand_key(cipher_key.get_bitvector_in_hex())
+        self.debug("Round key: ", round_keys)
         # format plain text
         message = self.format_text(plaintext)
         self.debug("Plain text: %s" % message)
@@ -268,6 +269,15 @@ class AESManager:
             return cipher_key.ljust(cipher_key_len, ' ')
             # Them khoang trang vao ben phai
         return cipher_key
+
+    def valid_cipher_key(self, cipher_key: str):
+        cipher_key_len = self.cipher_word * 4
+        if len(cipher_key) > cipher_key_len:
+            return "Cipher key dài quá %d ký tự" % cipher_key_len
+        if len(cipher_key) < cipher_key_len:
+            return "Cipher key ít hơn %d ký tự." % cipher_key_len
+            # Them khoang trang vao ben phai
+        return None
 
     @staticmethod
     def xor(hex1, hex2):

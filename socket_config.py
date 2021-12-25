@@ -1,6 +1,7 @@
 import socket
+from decouple import config
 
-IP = socket.gethostbyname(socket.gethostname())
-PORT = 1923
+IP = config("IP", socket.gethostbyname(socket.gethostname()))
+PORT = int(config("PORT", "1975"))
 
 ADDRESS = (IP, PORT)
