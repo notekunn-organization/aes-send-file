@@ -1,3 +1,4 @@
 files/*
 .idea
 /.env
+data.json
