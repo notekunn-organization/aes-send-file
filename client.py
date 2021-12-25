@@ -35,6 +35,9 @@ def make_len_message(n: str):
 
 
 send_command("upload", "abcd.txt")
-send_command("upload_content", "file_abcxyz")
+send_command("upload_content", "cuong dep trai")
+input()
+send_command("upload", "abcde.txt")
+send_command("upload_content", "noi dung file thu 2")
 # send_command("upload_content", "day la noi dung file")
 # input()

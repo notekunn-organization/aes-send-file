@@ -1,6 +1,8 @@
 import socket
 from threading import Thread, active_count
 from socket_config import PORT
+import time
+import json
 
 ADDRESS = (socket.gethostbyname(socket.gethostname()), PORT)
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -16,6 +18,13 @@ Mỗi khi gửi tin client sẽ gửi lên 1 header cho biết độ dài của 
 """
 
 uploadProcess = {}
+with open("./data.json", "r") as fpIn:
+    fileUploaded = json.load(fpIn)
+
+
+def store_json():
+    with open('./data.json', 'w+') as fpOut:
+        json.dump(fileUploaded, fpOut)
 
 
 def handle_client(conn, adr):
@@ -35,9 +44,11 @@ def handle_client(conn, adr):
                 message = conn.recv(message_len).decode(ENCODE_TYPE)
                 print(f"[{client_name}] send command `{command}`")
                 handler_command(client_name, command, message)
-        except:
-            print("OUT")
-            connected = False
+        except ConnectionResetError:
+            print("Connection error")
+        # except:
+        #     print("OUT")
+        #     connected = False
 
     if client_name in dictClient:
         del dictClient[client_name]
@@ -56,7 +67,18 @@ def handler_command(client_name, command: str, message: str):
         if client_name not in uploadProcess:
             print("Ban chua gui yeu cau upload file")
             return
-        print(f"{client_name} upload content for: {uploadProcess[client_name]}")
+        fileName = uploadProcess[client_name]
+        hashedFile = time.strftime("%Y%m%d%H%M%S") + '-' + fileName
+        print(f"{client_name} upload content for: {fileName}")
+        with open(f"files/{fileName}", "w+") as fp:
+            fp.write(message)
+        fileUploaded.append({
+            "id": len(fileUploaded) + 1,
+            "author": client_name,
+            "file_name": fileName,
+            "location": hashedFile
+        })
+        store_json()
         del uploadProcess[client_name]
         return
     return
