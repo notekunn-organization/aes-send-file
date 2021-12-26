@@ -82,8 +82,8 @@ class GUI(Tk):
         entry = ttk.Entry(col)
         self.aesCombo = ttk.Combobox(col, width=10, state='readonly',
                                      values=['AES-128', 'AES-192', 'AES-256'])
+        self.aesCombo.bind('<<ComboboxSelected>>', self.passphrase_change)
         entry.configure(font=("JetBrains Mono", 10))
-        entry.insert(0, "1" * 16)
         entry.bind("<KeyRelease>", self.passphrase_change)
         self.passphraseEntry = entry
         self.aesCombo.current(0)
@@ -101,9 +101,9 @@ class GUI(Tk):
         row.pack(side=BOTTOM, fill=X, padx=15, pady=15)
         row.columnconfigure(0, weight=1)
         row.columnconfigure(1, weight=1)
-        self.btnUpload = ttk.Button(row, text="Upload File", command=self.upload_file)
+        self.btnUpload = ttk.Button(row, text="Upload File", command=self.upload_file, state=DISABLED)
         self.btnUpload.grid(row=0, column=0)
-        self.btnDownload = ttk.Button(row, text="Download file", command=self.download_file)
+        self.btnDownload = ttk.Button(row, text="Download file", command=self.download_file, state=DISABLED)
         self.btnDownload.grid(row=0, column=1)
 
     def upload_file(self, *args):
