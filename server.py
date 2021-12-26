@@ -1,3 +1,4 @@
+import os
 import socket
 from typing import List
 from threading import active_count
@@ -9,14 +10,8 @@ import json
 ADDRESS = (socket.gethostbyname(socket.gethostname()), PORT)
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind(ADDRESS)
-clients = []
-dictClient = {}
-HEADER_SIZE = 32
-ENCODE_TYPE = 'utf-8'
 uploadProcess = {}
-
-with open("./data.json", "r") as fpIn:
-    fileUploaded = json.load(fpIn)
+fileUploaded = []
 
 
 def store_json():
@@ -34,39 +29,62 @@ class Server:
         for s in self.sessions:
             # Nếu khác client
             if s.clientName != clientName and s.running:
-                s.send_command(command, str)
+                s.send_command(command, message)
 
     def handle_command(self, session: Session, command: str, message: str):
         clientName = session.clientName
         if command == 'upload':
-            if session.clientName in uploadProcess:
+            if clientName in uploadProcess:
                 session.send_command("error", "Bạn đang upload 1 file khác")
                 return
-            print(f"{session.clientName} upload file: {message}")
-            uploadProcess[session.clientName] = message
+            print(f"{clientName} upload file: {message}")
+            uploadProcess[clientName] = message
             return
         if command == 'upload_content':
-            if session.clientName not in uploadProcess:
+            if clientName not in uploadProcess:
                 session.send_command("error", "Bạn chưa gửi yêu cầu upload file")
                 return
             fileName = uploadProcess[session.clientName]
             hashedFile = time.strftime("%Y%m%d%H%M%S") + '-' + fileName
-            print(f"{session.clientName} upload content for: {fileName}")
-            with open(f"files/{fileName}", "w+") as fp:
+            print(f"{clientName} upload content for: {fileName}")
+            with open(f"files/{hashedFile}", "w+") as fp:
                 fp.write(message)
-            fileUploaded.append({
+            newFile = {
                 "id": len(fileUploaded) + 1,
-                "author": session.clientName,
+                "author": clientName,
                 "file_name": fileName,
                 "location": hashedFile
-            })
+            }
+            fileUploaded.append(newFile)
             store_json()
-            del uploadProcess[session.clientName]
-            self.broadcast(clientName, "new_file", "Alo")
+            del uploadProcess[clientName]
+            self.broadcast(clientName, "new_file", session.encode_json(newFile))
+            session.send_command("info", "Upload file thành công")
             return
-        if command == 'loadfile':
+        if command == 'load_file':
+            session.send_command("load_file", session.encode_json(fileUploaded))
+            return
+        if command == 'download':
+            id = int(message)
+            fileToDownload = self.findFile(id)
+            if not fileToDownload:
+                session.send_command("error", "File không có trên hệ thống")
+                return
+            filePath = f"files/{fileToDownload['location']}"
+            if not os.path.exists(filePath):
+                session.send_command("error", "File thất lạc")
+                return
+            with open(filePath, "r") as fp:
+                fileContent = fp.read()
+                session.send_command("download", fileContent)
             return
         return
+
+    def findFile(self, id: int):
+        for i in range(len(fileUploaded)):
+            if fileUploaded[i]["id"] == id:
+                return fileUploaded[i]
+        return id
 
     def start(self):
         print("Server staring in %s:%d" % ADDRESS)

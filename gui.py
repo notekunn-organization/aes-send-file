@@ -1,31 +1,70 @@
 import os
-from threading import Thread
 from tkinter import *
 from tkinter import ttk, filedialog as fd, messagebox as mb
 from AESManager import AESManager
+from session.Session import Session
 import socket
 from socket_config import ADDRESS
 
 file_ext = [
-    ('Text File', '*.txt')
+    ('Text File', '*.txt'),
+    ('All file', '*.*')
 ]
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 print("Connecting to {}:{}".format(*ADDRESS))
 client.connect(ADDRESS)
+fileUploaded = []
+
+
+class ListFileBox:
+    cur: int
+
+    def __init__(self, root):
+        row = ttk.Frame(root)
+        row.pack(side=TOP, fill=X, padx=5, pady=5)
+        self.listFile = Listbox(root, activestyle=NONE)
+        self.listFile.pack(fill=X, pady=5, padx=10)
+        self.render_file()
+        self.listFile.bind("<<ListboxSelect>>", self.items_selected)
+
+    def render_file(self, files=None):
+        if files is None:
+            files = []
+        self.cur = -1
+        self.listFile.delete(0, END)
+        for i in range(len(files)):
+            self.listFile.insert(END, f"{files[i]['id']}) {files[i]['file_name']}")  # - {files[i]['author']}
+
+    def items_selected(self, event):
+        try:
+            selected, = self.listFile.curselection()
+            # print(str(self.cur) + '->' + str(selected))
+            self.cur = selected
+        except:
+            self.cur = -1
 
 
 class GUI(Tk):
+    listFileBox: ListFileBox
+    aesCombo: ttk.Combobox
+    passphraseEntry: ttk.Entry
+    errorLabel: ttk.Label
+    btnUpload: ttk.Button
+    btnDownload: ttk.Button
+    storePath: str  # Địa chỉ lưu file
+
     def __init__(self):
         super().__init__()
         self.geometry('500x400')
         self.title('AES File Transfer')
         self.iconbitmap('icon.ico')
-        self.cipher_key: ttk.Entry = None
-        self.aes_type: ttk.Combobox = None
-        self.cipher_text: Text = None
-        self.plain_text: Text = None
+        self.listFileBox = None
         self.setup_gui()
-        self.start_socket()
+        self.session = Session(client)
+        self.session.setCallback(self.handle_command)
+        self.session.start()
+        self.session.send_command("load_file", "")
+        self.storePath = None
 
     def setup_gui(self):
         row = ttk.Frame(self)
@@ -35,166 +74,153 @@ class GUI(Tk):
         lbl.pack()
 
         row = ttk.Frame(self)
-        lbl = ttk.Label(row, width=16, text="Cipher Key: ", anchor='w')
-        self.cipher_key = entry = ttk.Entry(row)
+        lbl = ttk.Label(row, width=16, text="Passphrase: ", anchor='nw')
+        col = ttk.Frame(row)
+        row.pack(side=TOP, fill=X, padx=5, pady=5)
+        lbl.pack(side=LEFT)
+        col.pack(fill=X)
+        entry = ttk.Entry(col)
+        self.aesCombo = ttk.Combobox(col, width=10, state='readonly',
+                                     values=['AES-128', 'AES-192', 'AES-256'])
         entry.configure(font=("JetBrains Mono", 10))
-        # current_type = StringVar()
-        self.aes_type = aes_type_cbb = ttk.Combobox(row, width=10, state='readonly',
-                                                    values=['AES-128', 'AES-192', 'AES-256'])
-        aes_type_cbb.current(0)
-        aes_type_cbb.configure(font=("JetBrains Mono", 10))
-        row.pack(side=TOP, fill=X, padx=5, pady=5)
-        lbl.pack(side=LEFT)
-        aes_type_cbb.pack(side=RIGHT, padx=5)
+        entry.insert(0, "1" * 16)
+        entry.bind("<KeyRelease>", self.passphrase_change)
+        self.passphraseEntry = entry
+        self.aesCombo.current(0)
+        self.aesCombo.configure(font=("JetBrains Mono", 10))
+        self.aesCombo.pack(side=RIGHT, padx=5)
         entry.pack(side=LEFT, expand=True, fill=X)
-
-        row = ttk.Frame(self)
-        lbl = ttk.Label(row, width=16, text="Plain File: ", anchor='w')
-        plain_file = ttk.Entry(row)
-        plain_file.configure(font=("JetBrains Mono", 10))
-        btnLoadText = ttk.Button(row, text="...")
-        row.pack(side=TOP, fill=X, padx=5, pady=5)
+        lbl = ttk.Label(row, text="", font=("JetBrains Mono", 10), foreground="#ff4d4f")
+        self.errorLabel = lbl
         lbl.pack(side=LEFT)
-        btnLoadText.pack(side=RIGHT, padx=10)
-        plain_file.pack(fill=X, expand=True)
 
-        row = ttk.Frame(self)
-        lbl = ttk.Label(row, width=16, text="Cipher File: ", anchor='w')
-        cipher_file = ttk.Entry(row)
-        cipher_file.configure(font=("JetBrains Mono", 10))
-        btnLoadText = ttk.Button(row, text="...")
-        row.pack(side=TOP, fill=X, padx=5, pady=5)
-        lbl.pack(side=LEFT)
-        btnLoadText.pack(side=RIGHT, padx=10)
-        cipher_file.pack(fill=X, expand=True)
-        # self.plain_text = txt = Text(row, height=5)
-        # txt.configure(font=("JetBrains Mono", 12))
-        #
-        # row.pack(side=TOP, fill=X, padx=5, pady=5)
-        # lbl.pack(side=LEFT)
-        # txt.pack(fill=BOTH)
-        #
-        # spr = ttk.Separator(self, orient='horizontal')
-        # spr.pack(fill=X, pady=5, padx=10)
-        #
-        # row = ttk.Frame(self)
-        # lbl = ttk.Label(row, width=16, text="Cipher Text: ")
-        # self.cipher_text = txt = Text(row, height=5)
-        # txt.configure(font=("JetBrains Mono", 12))
-        #
-        # row.pack(side=TOP, fill=X, padx=5, pady=5)
-        # lbl.pack(side=LEFT)
-        # txt.pack(fill=BOTH)
-        #
-        # row = Frame(self)
-        # row.pack(side=BOTTOM, fill=X, padx=15, pady=15)
-        # for i in range(5):
-        #     row.columnconfigure(i, weight=1)
-        # ttk.Button(row, text="Đọc file", command=self.load_plain_text) \
-        #     .grid(row=0, column=0)
-        # ttk.Button(row, text="Lưu file", command=self.save_plain_text) \
-        #     .grid(row=0, column=1)
-        # ttk.Button(row, text="Gửi file", command=self.send_file) \
-        #     .grid(row=0, column=2)
-        # ttk.Button(row, text="Mã hóa", command=self.do_encrypt) \
-        #     .grid(row=0, column=3)
-        # ttk.Button(row, text="Giải mã", command=self.do_decrypt) \
-        #     .grid(row=0, column=4)
+        self.listFileBox = ListFileBox(self)
+        self.listFileBox.render_file(fileUploaded)
 
-    def load_plain_text(self, *args):
-        file_path = fd.askopenfilename(title="Chọn file Plain Text", defaultextension=file_ext, filetypes=file_ext)
+        row = Frame(self)
+        row.pack(side=BOTTOM, fill=X, padx=15, pady=15)
+        row.columnconfigure(0, weight=1)
+        row.columnconfigure(1, weight=1)
+        self.btnUpload = ttk.Button(row, text="Upload File", command=self.upload_file)
+        self.btnUpload.grid(row=0, column=0)
+        self.btnDownload = ttk.Button(row, text="Download file", command=self.download_file)
+        self.btnDownload.grid(row=0, column=1)
+
+    def upload_file(self, *args):
+        file_path = fd.askopenfilename(title="Chọn file muốn gửi", defaultextension=file_ext, filetypes=file_ext)
         if not file_path:
             return
         if not os.path.exists(file_path):
             mb.showerror("Lỗi đọc file", "Đường dẫn không tồn tại")
             return
-        file = open(file_path, "r")
-        file_content = file.read()
-        file.close()
-        self.plain_text.delete(1.0, END)
-        self.plain_text.insert(1.0, file_content)
+        _, file_name = os.path.split(file_path)
+        self.session.send_command("upload", file_name)
+        with open(file_path, "r") as fp:
+            file_content = fp.read()
 
-    def save_plain_text(self, *args):
-        file_path = fd.asksaveasfilename(title="Lưu plain text", defaultextension=file_ext, filetypes=file_ext)
+        aesType = self.aesCombo.get()
+        aesType = int(aesType[4:])
+        passphrase = self.passphraseEntry.get()
+        aes = AESManager(aesType)
+        err = aes.valid_cipher_key(passphrase)
+        if err is not None:
+            mb.showerror("Lỗi", err)
+            return
+        try:
+            fileEncrypted = aes.encrypt(passphrase, file_content)
+            self.session.send_command("upload_content", fileEncrypted)
+        except:
+            mb.showerror("Lỗi", "Có lỗi xảy ra")
+        return
+
+    def download_file(self, *args):
+        cur = self.listFileBox.cur
+        if cur == -1:
+            mb.showinfo("Có lỗi xảy ra", "Vui lòng chọn file muốn tải về")
+            return
+        if cur >= len(fileUploaded):
+            mb.showerror("Lỗi", "File bạn chọn không hợp lệ")
+            return
+        if self.storePath is not None:
+            mb.showerror("Lỗi", "Bạn đang download 1 file khác. Vui lòng đợi")
+            return
+        fileToDownload = fileUploaded[cur]
+
+        file_path = fd.asksaveasfilename(title="Chọn nơi lưu file", defaultextension=file_ext,\
+                                       filetypes=file_ext, initialfile=fileToDownload["file_name"])
         if not file_path:
             return
-        file = open(file_path, "w+")
-        file_content = self.plain_text.get(1.0, END)
-        file.write(file_content)
-        file.close()
+        self.storePath = file_path
+        self.session.send_command("download", str(fileToDownload["id"]))
 
-        mb.showinfo("Lưu plain text", "Lưu file thành công")
-
-    def do_encrypt(self, *args):
-        try:
-            plain_text = self.plain_text.get(0.0, END)[:-1]  # bo 1 ky tu \n cuoi cung
-            cipher_key = self.cipher_key.get()
-            aes_type = self.aes_type.get()
-            aes = AESManager(int(aes_type[4:]))
-            cipher_key_error = aes.valid_cipher_key(cipher_key)
-            if cipher_key_error is not None:
-                mb.showerror("Lỗi cipher key", cipher_key_error)
-                return
-            if len(plain_text) == 0:
-                mb.showerror("Lỗi", "Vui lòng nhập plain text")
-                return
-            cipher_text = aes.encrypt(cipher_key, plain_text)
-            self.cipher_text.delete(0.0, END)
-            self.cipher_text.insert(0.0, cipher_text)
-            mb.showinfo("Mã hóa", "Mã hóa thành công")
-        except:
-            mb.showerror("Lỗi", "Có lỗi xảy ra")
-
-    def do_decrypt(self, *args):
-        try:
-            cipher_text = self.cipher_text.get(0.0, END)[:-1]  # bo 1 ky tu \n cuoi cung
-            cipher_key = self.cipher_key.get()
-            aes_type = self.aes_type.get()
-            aes = AESManager(int(aes_type[4:]))
-            cipher_key_error = aes.valid_cipher_key(cipher_key)
-            if cipher_key_error is not None:
-                mb.showerror("Lỗi cipher key", cipher_key_error)
-                return
-            if len(cipher_text) == 0 or len(cipher_text) % 32 != 0:
-                mb.showerror("Lỗi", "Cipher text không hợp lệ")
-                return
-
-            plain_text = aes.decrypt(cipher_key, cipher_text)
-            self.plain_text.delete(0.0, END)
-            self.plain_text.insert(0.0, plain_text)
-            mb.showinfo("Giải mã", "Giải mã thành công")
-        except:
-            mb.showerror("Lỗi", "Có lỗi xảy ra")
-
-    def start_socket(self):
-        thread = Thread(target=self.receive_file)
-        thread.start()
-
-    def receive_file(self):
-        while True:
-            msg = client.recv(2048).decode("utf-8")
-            if not msg:
-                continue
-            confirm = mb.askyesno("Nhận file", "Bạn vừa nhận được 1 file. Bạn có muốn mở lên không?")
-            if confirm:
-                self.plain_text.delete(0.0, END)
-                self.cipher_text.delete(0.0, END)
-                self.cipher_text.insert(0.0, msg)
-
-
-    def send_file(self):
-        plain_text = self.plain_text.get(0.0, END)[:-1]  # bo 1 ky tu \n cuoi cung
-        cipher_key = self.cipher_key.get()
-        if len(cipher_key) == 0:
-            mb.showerror("Lỗi", "Vui lòng nhập cipher key")
+    def passphrase_change(self, event):
+        aesType = self.aesCombo.get()
+        aesType = int(aesType[4:])
+        passphrase_len = aesType // 8
+        passphrase = self.passphraseEntry.get()
+        if len(passphrase) < passphrase_len:
+            self.errorLabel.configure(text=f"Passphrase ngắn hơn {passphrase_len} ký tự")
+            self.btnUpload['state'] = DISABLED
+            self.btnDownload['state'] = DISABLED
             return
-        if len(plain_text) == 0:
-            mb.showerror("Lỗi", "Vui lòng nhập plain text")
+        if len(passphrase) > passphrase_len:
+            self.errorLabel.configure(text=f"Passphrase dài quá {passphrase_len} ký tự")
+            self.btnUpload['state'] = DISABLED
+            self.btnDownload['state'] = DISABLED
             return
-        aes_type = self.aes_type.get()
-        aes = AESManager(int(aes_type[4:]))
-        cipher_text = aes.encrypt(cipher_key, plain_text)
-        client.send(cipher_text.encode("utf-8"))
+
+        self.errorLabel.configure(text="")
+        self.btnUpload['state'] = NORMAL
+        self.btnDownload['state'] = NORMAL
+
+    def handle_command(self, _, command, message):
+        if command == 'error':
+            mb.showerror("Có lỗi xảy ra", message)
+            return
+        if command == 'info':
+            mb.showinfo("Thông báo", message)
+            return
+        if command == 'new_file':
+            # Khi có file mới server sẽ gửi thông báo đến các máy khác
+            # Load vào
+            newFile = self.session.decode_json(message)
+            print(newFile)
+            fileUploaded.insert(0, newFile)
+            self.listFileBox.render_file(fileUploaded)
+            return
+        if command == 'load_file':
+            # Khi server gửi thông tin các file trước đó
+            fileReceive = self.session.decode_json(message)
+            fileUploaded.clear()
+            for i in range(len(fileReceive)):
+                fileUploaded.insert(0, fileReceive[i])
+            self.listFileBox.render_file(fileUploaded)
+        if command == 'download':
+            if self.storePath is None:
+                return
+            fileContent = message
+            aesType = self.aesCombo.get()
+            aesType = int(aesType[4:])
+            passphrase = self.passphraseEntry.get()
+            aes = AESManager(aesType)
+            err = aes.valid_cipher_key(passphrase)
+            if err is not None:
+                mb.showerror("Lỗi", err)
+                return
+            try:
+                fileDecrypted = aes.decrypt(passphrase, fileContent)
+                with open(self.storePath, "w+") as fp:
+                    fp.write(fileDecrypted)
+
+                self.storePath = None
+            except:
+                mb.showerror("Lỗi", "Có lỗi xảy ra")
+                self.storePath = None
+                return
+
+            mb.showinfo("Thông báo", "Tải về thành công")
+            return
+        print(command, message)
 
 
 if __name__ == '__main__':

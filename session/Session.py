@@ -1,5 +1,6 @@
 from threading import Thread
 from socket import socket
+import json
 
 HEADER_SIZE = 32
 ENCODE_TYPE = 'utf-8'
@@ -71,3 +72,11 @@ class Session(Thread):
             except:
                 self.running = False
         self.conn.close()
+
+    def encode_json(self, json_obj):
+        json_str = json.dumps(json_obj)
+        return json_str
+
+    def decode_json(self, json_str):
+        json_obj = json.loads(json_str)
+        return json_obj

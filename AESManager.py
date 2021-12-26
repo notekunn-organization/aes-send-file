@@ -101,11 +101,11 @@ class AESManager:
     def decrypt(self, cipher_key: str, ciphertext: str):
         result_plain_text = ""
         cipher_key = self.handler_cipher_key(cipher_key)
-        print("Passphrase: %s" % cipher_key)
+        self.debug("Passphrase: %s" % cipher_key)
         cipher_key = BitVector(textstring=cipher_key)
         # gen round keys
         round_keys = self.expand_key(cipher_key.get_bitvector_in_hex())
-        print("Cipher text: %s" % ciphertext)
+        self.debug("Cipher text: %s" % ciphertext)
 
         start = 0
         end = 32
