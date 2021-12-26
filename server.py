@@ -6,6 +6,13 @@ from socket_config import PORT
 from session.Session import Session
 import time
 import json
+import shutil
+
+folderFiles = "files"
+if os.path.exists(folderFiles) and os.path.isdir(folderFiles):
+    shutil.rmtree(folderFiles)
+
+os.makedirs(folderFiles, exist_ok=False)
 
 ADDRESS = (socket.gethostbyname(socket.gethostname()), PORT)
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -47,7 +54,7 @@ class Server:
             fileName = uploadProcess[session.clientName]
             hashedFile = time.strftime("%Y%m%d%H%M%S") + '-' + fileName
             print(f"{clientName} upload content for: {fileName}")
-            with open(f"files/{hashedFile}", "w+") as fp:
+            with open(f"{folderFiles}/{hashedFile}", "w+") as fp:
                 fp.write(message)
             newFile = {
                 "id": len(fileUploaded) + 1,
@@ -70,7 +77,7 @@ class Server:
             if not fileToDownload:
                 session.send_command("error", "File không có trên hệ thống")
                 return
-            filePath = f"files/{fileToDownload['location']}"
+            filePath = f"{folderFiles}/{fileToDownload['location']}"
             if not os.path.exists(filePath):
                 session.send_command("error", "File thất lạc")
                 return
