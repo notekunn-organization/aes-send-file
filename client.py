@@ -7,6 +7,6 @@ client.connect(ADDRESS)
 
 session = Session(client)
 session.start()
-session.send_command("upload", "abcdef.txt")
+# session.send_command("upload", "abcdef.txt")
 session.send_command("upload", "abcdef.txt")
 session.send_command("upload_content", "1111")
